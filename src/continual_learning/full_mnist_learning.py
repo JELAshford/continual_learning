@@ -13,17 +13,17 @@ class MNISTNet(nn.Module):
     def __init__(self):
         super(MNISTNet, self).__init__()
         self.model = nn.Sequential(
-            nn.Conv2d(in_channels=1, out_channels=32, kernel_size=3, padding=1),
+            nn.Conv2d(in_channels=1, out_channels=8, kernel_size=3, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(2),
-            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1),
+            nn.Conv2d(in_channels=8, out_channels=16, kernel_size=3, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(2),
             nn.Flatten(),
-            nn.Linear(7 * 7 * 64, 128),
+            nn.Linear(7 * 7 * 16, 64),
             nn.ReLU(),
             nn.Dropout(0.25),
-            nn.Linear(128, 10),
+            nn.Linear(64, 10),
             nn.LogSoftmax(dim=1),
         )
 
@@ -71,9 +71,9 @@ def test(model, device, test_loader, num_targets=10, eps=1e-8):
 
 if __name__ == "__main__":
     # Training settings
-    BATCH_SIZE = 32
+    BATCH_SIZE = 64
     TRAIN_STEPS = 1000
-    LOG_STEPS = 100
+    LOG_STEPS = 50
     LEARNING_RATE = 3e-4
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -85,14 +85,6 @@ if __name__ == "__main__":
     train_dataset = datasets.MNIST(**mnist_options, train=True)
     train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
 
-    # dataloaders = [
-    #     DataLoader(
-    #         SingleClassDatset(train_dataset, class_labels=[label]),
-    #         batch_size=BATCH_SIZE,
-    #         shuffle=True,
-    #     )
-    #     for label in range(3)
-    # ]
     # dataloaders = [
     #     DataLoader(
     #         SingleClassDatset(
@@ -125,13 +117,28 @@ if __name__ == "__main__":
     model = MNISTNet().to(DEVICE)
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
-    # Train and evaluate
+    # Quick warmup train on the full dataset
+    warmup_iterator = enumerate(_make_infinite(train_dataloader))
+    for step_idx, (data, target) in (
+        pb := tqdm(warmup_iterator, total=TRAIN_STEPS // 2)
+    ):
+        if step_idx > TRAIN_STEPS // 2:
+            break
+        data, target = data.to(DEVICE), target.to(DEVICE)
+        optimizer.zero_grad()
+        output = model(data)
+        loss = F.nll_loss(output, target)
+        loss.backward()
+        optimizer.step()
+        pb.set_description(f"warmup_loss={torch.mean(loss):.4f}")
+
+    # Train and selected datasets and evaluate
     total_batches = 0
     log_times, log_accuracies = [], []
-    for label, dataloader in enumerate(dataloaders):
+    for dataloader in dataloaders:
         model.train()
         data_iterator = enumerate(_make_infinite(dataloader))
-        for step_idx, (data, target) in tqdm(data_iterator, total=TRAIN_STEPS):
+        for step_idx, (data, target) in (pb := tqdm(data_iterator, total=TRAIN_STEPS)):
             if step_idx > TRAIN_STEPS:
                 break
             data, target = data.to(DEVICE), target.to(DEVICE)
@@ -143,14 +150,26 @@ if __name__ == "__main__":
             total_batches += 1
             if total_batches % LOG_STEPS == 0:
                 class_accuracies = test(model, DEVICE, test_loader)
-                # print(f"{label=} {total_batches=} {class_accuracies=}")
+                pb.set_description(f"overall_acc={torch.mean(class_accuracies):.4f}")
                 log_times.append(total_batches)
                 log_accuracies.append(class_accuracies)
 
     # Visualise accuracy over training
     log_accuracies = torch.stack(log_accuracies)
-    plt.plot(log_times, log_accuracies)
-    plt.legend(labels=[*map(str, range(10))])
+
+    fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+    ax.plot(log_times, log_accuracies)
+    fig.legend(labels=[*map(str, range(10))], loc="right")
+    ax.set_xlabel("Training Batches")
+    ax.set_ylabel("Test Dataset Accuracy")
     plt.show()
-    plt.imshow(log_accuracies)
+
+    fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+    im = ax.imshow(
+        log_accuracies.T, vmin=0, vmax=1, aspect="auto", interpolation="none"
+    )
+    ax.set_yticks(ticks=range(10), labels=[*map(str, range(10))])
+    fig.colorbar(im)
+    ax.set_xlabel("Training Batches")
+    ax.set_ylabel("MNIST Digit Class")
     plt.show()
