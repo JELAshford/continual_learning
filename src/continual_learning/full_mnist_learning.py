@@ -94,21 +94,6 @@ if __name__ == "__main__":
     model = model.to(DEVICE)
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
-    # # Quick warmup train on the full dataset
-    # warmup_iterator = enumerate(_make_infinite(train_dataloader))
-    # for step_idx, (data, target) in (
-    #     pb := tqdm(warmup_iterator, total=TRAIN_STEPS // 2)
-    # ):
-    #     if step_idx > TRAIN_STEPS // 2:
-    #         break
-    #     data, target = data.to(DEVICE), target.to(DEVICE)
-    #     optimizer.zero_grad()
-    #     output = model(data)
-    #     loss = F.nll_loss(output, target)
-    #     loss.backward()
-    #     optimizer.step()
-    #     pb.set_description(f"warmup_loss={torch.mean(loss):.4f}")
-
     # Train and selected datasets and evaluate
     total_batches = 0
     log_times, log_accuracies = [], []
@@ -132,7 +117,7 @@ if __name__ == "__main__":
                 log_accuracies.append(class_accuracies)
 
     # Visualise accuracy over training
-    log_accuracies = torch.stack(log_accuracies)
+    log_accuracies = torch.stack(log_accuracies).detach().cpu().numpy()
 
     fig, ax = plt.subplots(1, 1, figsize=(10, 5))
     ax.plot(log_times, log_accuracies)
