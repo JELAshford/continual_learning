@@ -31,7 +31,7 @@ class MNISTNet(nn.Module):
         return self.model(x)
 
 
-class SingleClassDatset(Dataset):
+class ClassSubsetDataset(Dataset):
     def __init__(self, full_dataset, class_labels):
         class_mask = torch.isin(full_dataset.targets, torch.Tensor(class_labels))
         self.class_samples = full_dataset.data[class_mask, :].float()
@@ -87,14 +87,14 @@ if __name__ == "__main__":
 
     # dataloaders = [
     #     DataLoader(
-    #         SingleClassDatset(
+    #         ClassSubsetDataset(
     #             train_dataset, class_labels=[i for i in range(10) if i % 2 == 0]
     #         ),
     #         batch_size=BATCH_SIZE,
     #         shuffle=True,
     #     ),
     #     DataLoader(
-    #         SingleClassDatset(
+    #         ClassSubsetDataset(
     #             train_dataset, class_labels=[i for i in range(10) if i % 2 != 0]
     #         ),
     #         batch_size=BATCH_SIZE,
@@ -103,7 +103,7 @@ if __name__ == "__main__":
     # ]
     dataloaders = [
         DataLoader(
-            SingleClassDatset(train_dataset, class_labels=pair),
+            ClassSubsetDataset(train_dataset, class_labels=pair),
             batch_size=BATCH_SIZE,
             shuffle=True,
         )
