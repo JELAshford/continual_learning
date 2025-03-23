@@ -7,28 +7,7 @@ import torch
 import matplotlib.pylab as plt
 from tqdm import tqdm
 
-
-# Define the CNN architecture
-class MNISTNet(nn.Module):
-    def __init__(self):
-        super(MNISTNet, self).__init__()
-        self.model = nn.Sequential(
-            nn.Conv2d(in_channels=1, out_channels=8, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.Conv2d(in_channels=8, out_channels=16, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.Flatten(),
-            nn.Linear(7 * 7 * 16, 64),
-            nn.ReLU(),
-            nn.Dropout(0.25),
-            nn.Linear(64, 10),
-            nn.LogSoftmax(dim=1),
-        )
-
-    def forward(self, x):
-        return self.model(x)
+torch.manual_seed(1701)
 
 
 class ClassSubsetDataset(Dataset):
@@ -85,22 +64,6 @@ if __name__ == "__main__":
     train_dataset = datasets.MNIST(**mnist_options, train=True)
     train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
 
-    # dataloaders = [
-    #     DataLoader(
-    #         ClassSubsetDataset(
-    #             train_dataset, class_labels=[i for i in range(10) if i % 2 == 0]
-    #         ),
-    #         batch_size=BATCH_SIZE,
-    #         shuffle=True,
-    #     ),
-    #     DataLoader(
-    #         ClassSubsetDataset(
-    #             train_dataset, class_labels=[i for i in range(10) if i % 2 != 0]
-    #         ),
-    #         batch_size=BATCH_SIZE,
-    #         shuffle=True,
-    #     ),
-    # ]
     dataloaders = [
         DataLoader(
             ClassSubsetDataset(train_dataset, class_labels=pair),
@@ -114,23 +77,37 @@ if __name__ == "__main__":
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE)
 
     # Initialize the model, optimizer
-    model = MNISTNet().to(DEVICE)
+    model = nn.Sequential(
+        nn.Conv2d(in_channels=1, out_channels=16, kernel_size=3, padding=1),
+        nn.ReLU(),
+        nn.MaxPool2d(2),
+        nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, padding=1),
+        nn.ReLU(),
+        nn.MaxPool2d(2),
+        nn.Flatten(),
+        nn.Linear(7 * 7 * 32, 64),
+        nn.ReLU(),
+        nn.Dropout(0.25),
+        nn.Linear(64, 10),
+        nn.LogSoftmax(dim=1),
+    )
+    model = model.to(DEVICE)
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
-    # Quick warmup train on the full dataset
-    warmup_iterator = enumerate(_make_infinite(train_dataloader))
-    for step_idx, (data, target) in (
-        pb := tqdm(warmup_iterator, total=TRAIN_STEPS // 2)
-    ):
-        if step_idx > TRAIN_STEPS // 2:
-            break
-        data, target = data.to(DEVICE), target.to(DEVICE)
-        optimizer.zero_grad()
-        output = model(data)
-        loss = F.nll_loss(output, target)
-        loss.backward()
-        optimizer.step()
-        pb.set_description(f"warmup_loss={torch.mean(loss):.4f}")
+    # # Quick warmup train on the full dataset
+    # warmup_iterator = enumerate(_make_infinite(train_dataloader))
+    # for step_idx, (data, target) in (
+    #     pb := tqdm(warmup_iterator, total=TRAIN_STEPS // 2)
+    # ):
+    #     if step_idx > TRAIN_STEPS // 2:
+    #         break
+    #     data, target = data.to(DEVICE), target.to(DEVICE)
+    #     optimizer.zero_grad()
+    #     output = model(data)
+    #     loss = F.nll_loss(output, target)
+    #     loss.backward()
+    #     optimizer.step()
+    #     pb.set_description(f"warmup_loss={torch.mean(loss):.4f}")
 
     # Train and selected datasets and evaluate
     total_batches = 0
