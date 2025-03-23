@@ -42,8 +42,8 @@ def test(model, device, test_loader, num_targets=10, eps=1e-8):
     preds, targets = torch.cat(preds), torch.cat(targets)
 
     # Calculate per-class accuracy
-    class_counts = torch.bincount(targets, minlength=10)
-    correct_counts = torch.bincount(targets[preds == targets], minlength=10)
+    class_counts = torch.bincount(targets, minlength=num_targets)
+    correct_counts = torch.bincount(targets[preds == targets], minlength=num_targets)
     class_accuracy = correct_counts / (class_counts + eps)
     return class_accuracy
 
